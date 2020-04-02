@@ -7,6 +7,7 @@
 #include <QtSql>
 #include "QStandardItemModel"
 #include "QStandardItem"
+#include "QMessageBox"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -26,7 +27,6 @@ private:
     enum tableType {accounts, notebooks};
     tableType currentTable = accounts;
     int currentAccountRecord = 0, currentNotebookRecord = 0, maxAccountRecond, maxNotebookRecond;
-    QString firstValue, secondValue, thirdValue;
 
 public slots:
     void setAccountsTable()
@@ -38,6 +38,12 @@ public slots:
         ui->firstLabel->setText("Фамилия");
         ui->secondLabel->setText("Имя");
         ui->thirdLabel->setText("Почта");
+        db.open();
+        QSqlQuery query;
+        query.exec("SELECT * FROM Accounts where Id=" + QString::number(currentAccountRecord));
+        query.first();
+        loadValues(query);
+        db.close();
         ui->numberDisplay->setText(QString::number(currentAccountRecord) + "/" + QString::number(maxAccountRecond));
     }
 
@@ -50,6 +56,12 @@ public slots:
         ui->firstLabel->setText("Модель");
         ui->secondLabel->setText("Производитель");
         ui->thirdLabel->setText("Процессор");
+        db.open();
+        QSqlQuery query;
+        query.exec("SELECT * FROM Notebooks where Id=" + QString::number(currentNotebookRecord));
+        query.first();
+        loadValues(query);
+        db.close();
         ui->numberDisplay->setText(QString::number(currentNotebookRecord) + "/" + QString::number(maxNotebookRecond));
     }
 
@@ -65,8 +77,8 @@ public slots:
                 currentAccountRecord--;
                 ui->numberDisplay->setText(QString::number(currentAccountRecord) + "/" + QString::number(maxAccountRecond));
                 QSqlQuery query;
-                query.exec("SELECT * FROM Accounts");
-                query.seek(currentAccountRecord-1);
+                query.exec("SELECT * FROM Accounts where Id=" + QString::number(currentAccountRecord));
+                query.first();
                 loadValues(query);
                 db.close();
             }
@@ -78,8 +90,8 @@ public slots:
                 currentNotebookRecord--;
                 ui->numberDisplay->setText(QString::number(currentNotebookRecord) + "/" + QString::number(maxNotebookRecond));
                 QSqlQuery query;
-                query.exec("SELECT * FROM Notebooks");
-                query.seek(currentNotebookRecord-1);
+                query.exec("SELECT * FROM Notebooks where Id=" + QString::number(currentNotebookRecord));
+                query.first();
                 loadValues(query);
                 db.close();
             }
@@ -128,21 +140,29 @@ public slots:
         QSqlQuery query;
         if(currentTable == accounts){
 
-            query.prepare("INSERT INTO Accounts VALUES (:Surname, :Name, :Mail)");
+            query.prepare("INSERT INTO Accounts VALUES (:Id, :Surname, :Name, :Mail)");
+            query.bindValue(":Id", maxAccountRecond+1);
             query.bindValue(":Surname", ui->firstEdit->text());
             query.bindValue(":Name", ui->secondEdit->text());
             query.bindValue(":Mail", ui->thirdEdit->text());
             query.exec();
             maxAccountRecond++;
             ui->numberDisplay->setText(QString::number(currentAccountRecord) + "/" + QString::number(maxAccountRecond));
+            query.exec("SELECT * FROM Accounts where Id=" + QString::number(currentAccountRecord));
+            query.first();
+            loadValues(query);
         } else if (currentTable == notebooks) {
-            query.prepare("INSERT INTO Notebooks VALUES (:Model, :Vendor, :CPU)");
+            query.prepare("INSERT INTO Notebooks VALUES (:Id, :Model, :Vendor, :CPU)");
+            query.bindValue(":Id", maxNotebookRecond+1);
             query.bindValue(":Model", ui->firstEdit->text());
             query.bindValue(":Vendor", ui->secondEdit->text());
             query.bindValue(":CPU", ui->thirdEdit->text());
             query.exec();
             maxNotebookRecond++;
             ui->numberDisplay->setText(QString::number(currentNotebookRecord) + "/" + QString::number(maxNotebookRecond));
+            query.exec("SELECT * FROM Notebooks where Id=" + QString::number(currentNotebookRecord));
+            query.first();
+            loadValues(query);
         }
         db.close();
     }
@@ -156,11 +176,11 @@ public slots:
         QSqlQuery query;
         if(currentTable == accounts){
             if(currentAccountRecord!=0)
-                query.exec("UPDATE Accounts SET Surname='"+ui->firstEdit->text()+"', Name='"+ui->secondEdit->text()+"', Mail='"+ui->thirdEdit->text()+"' WHERE Surname='"+firstValue+"' AND Name='"+secondValue+"' AND Mail='"+thirdValue+"'");
+                query.exec("UPDATE Accounts SET Surname='"+ui->firstEdit->text()+"', Name='"+ui->secondEdit->text()+"', Mail='"+ui->thirdEdit->text()+"' WHERE Id=" + QString::number(currentAccountRecord));
         }
         else if (currentTable == notebooks){
             if(currentNotebookRecord!=0)
-                query.exec("UPDATE Notebooks SET Model='"+ui->firstEdit->text()+"', Vendor='"+ui->secondEdit->text()+"', CPU='"+ui->thirdEdit->text()+"' WHERE Model='"+firstValue+"' AND Vendor='"+secondValue+"' AND CPU='"+thirdValue+"'");
+                query.exec("UPDATE Notebooks SET Model='"+ui->firstEdit->text()+"', Vendor='"+ui->secondEdit->text()+"', CPU='"+ui->thirdEdit->text()+"' WHERE Id=" + QString::number(currentNotebookRecord));
         }
         db.close();
     }
@@ -175,18 +195,21 @@ public slots:
         if(currentTable == accounts)
         {
             if(currentAccountRecord!=0){
-                query.exec("DELETE FROM Accounts WHERE Surname='"+ui->firstEdit->text()+"' AND Name='"+ui->secondEdit->text()+"' AND Mail='"+ui->thirdEdit->text()+"'");
+                query.exec("DELETE FROM Accounts WHERE Id=" + QString::number(currentAccountRecord));
+                query.exec("update Accounts set Id=Id-1 WHERE Id>" + QString::number(currentAccountRecord));
                 maxAccountRecond--;
             }
         }
         else if (currentTable == notebooks)
         {
             if(currentNotebookRecord!=0){
-                query.exec("DELETE FROM Notebooks WHERE Model='"+ui->firstEdit->text()+"' AND Vendor='"+ui->secondEdit->text()+"' AND CPU='"+ui->thirdEdit->text()+"'");
+                query.exec("DELETE FROM Notebooks WHERE Id=" + QString::number(currentNotebookRecord));
+                query.exec("update Notebooks set Id=Id-1 WHERE Id>" + QString::number(currentNotebookRecord));
                 maxNotebookRecond--;
             }
         }
         db.close();
+        leftButtonClicked();
     }
 
     void queryButtonClicked()
@@ -196,25 +219,26 @@ public slots:
          */
         db.open();
         QSqlQuery query;
+
+        if(ui->queryEdit->text().left(6).toLower() != "select")
+        {
+            QMessageBox msgBox;
+            msgBox.setWindowTitle("Ошибка");
+            msgBox.setText("Доступен только SELECT");
+            msgBox.exec();
+            return;
+        }
+
         query.exec(ui->queryEdit->text());
-
         QStandardItemModel *model = new QStandardItemModel;
-        QStandardItem *item;
-
         int row = 0;
         while(query.next()){
-            //item = new QStandardItem(query.value(0).toString());
-            //model->setItem(row, 0, item);
-            //item = new QStandardItem(query.value(1).toString());
-            //model->setItem(row, 1, item);
-            //item = new QStandardItem(query.value(2).toString());
-            //model->setItem(row, 2, item);
             model->setItem(row, 0, new QStandardItem(query.value(0).toString()));
             model->setItem(row, 1, new QStandardItem(query.value(1).toString()));
             model->setItem(row, 2, new QStandardItem(query.value(2).toString()));
+            model->setItem(row, 3, new QStandardItem(query.value(3).toString()));
             row++;
         }
-
         ui->tableView->setModel(model);
         db.close();
     }
@@ -225,12 +249,9 @@ public slots:
          * @brief Загрузка значений из таблицы в интерфейс и буфер
          * @param query Объект sql-запроса с полученными данными
          */
-        ui->firstEdit->setText(query.value(0).toString());
-        ui->secondEdit->setText(query.value(1).toString());
-        ui->thirdEdit->setText(query.value(2).toString());
-        firstValue=query.value(0).toString();
-        secondValue=query.value(1).toString();
-        thirdValue=query.value(2).toString();
+        ui->firstEdit->setText(query.value(1).toString());
+        ui->secondEdit->setText(query.value(2).toString());
+        ui->thirdEdit->setText(query.value(3).toString());
     }
 };
 #endif // MAINWINDOW_H

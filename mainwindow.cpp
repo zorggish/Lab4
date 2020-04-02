@@ -17,15 +17,14 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     connect( ui->queryButton, &QRadioButton::clicked, this, &MainWindow::queryButtonClicked);
 
     QString path = QCoreApplication::applicationDirPath() + "/db.db";
-    qDebug() << path;
     QFile file(path);
     db.setDatabaseName(path);
     if (!file.exists())
     {
         db.open();
         QSqlQuery query;
-        query.exec("CREATE TABLE 'Accounts' ('Surname' TEXT, 'Name' TEXT, 'Mail' TEXT)");
-        query.exec("CREATE TABLE 'Notebooks' ('Model' TEXT, 'Vendor' TEXT, 'CPU' TEXT)");
+        query.exec("CREATE TABLE 'Accounts' ('Id' INTEGER, 'Surname' TEXT, 'Name' TEXT, 'Mail' TEXT)");
+        query.exec("CREATE TABLE 'Notebooks' ('Id' INTEGER, 'Model' TEXT, 'Vendor' TEXT, 'CPU' TEXT)");
         db.close();
         maxAccountRecond=0;
         maxNotebookRecond=0;
@@ -44,6 +43,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
         db.close();
     }
 
+    ui->tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     ui->numberDisplay->setText(QString::number(currentAccountRecord) + "/" + QString::number(maxAccountRecond));
 }
 
